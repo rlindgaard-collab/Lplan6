@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="da">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1.0">
+  <title>Læringsassistent</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <style>
+    :root { --bg:#f5f5f7; --card:#fff; --ink:#111; --muted:#666; --blue:#1a56db; --green:#0f5132; --line:#d0d7e2; }
+    *{ box-sizing: border-box; }
+    body { font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; margin:24px; background:var(--bg); color:var(--ink); }
+    header{ display:flex; align-items:center; justify-content:space-between; margin-bottom:16px; }
+    h1{ margin:0; font-size:1.8rem; }
+    .container{ display:flex; flex-wrap:wrap; gap:24px; align-items:flex-start; }
+    .left,.right{ flex:1; min-width:340px; }
+    .card{ background:var(--card); border-radius:16px; padding:16px; box-shadow:0 4px 12px rgba(0,0,0,.06); margin-bottom:16px; }
+    .btn{ padding:12px 16px; border:none; border-radius:12px; font-weight:600; cursor:pointer; }
+    .btn-dark{ background:var(--ink); color:#fff; }
+    .btn-danger{ background:#d33; color:#fff; }
+    .suggestion{ background:#e8f7ee; }
+    .competency{ background:#e6f0ff; }
+    .summary{ background:#fffbe6; }
+    label{ font-weight:600; display:block; margin-bottom:6px; }
+    select{ padding:10px 12px; border-radius:10px; border:1px solid #ddd; }
+    textarea{ width:100%; min-height:80px; border:1px solid #ddd; border-radius:10px; padding:8px; }
+    .note{ color:var(--muted); font-size:.9rem; }
+    .scroll{ max-height:350px; overflow:auto; }
+    ul{ margin:0 0 12px 20px; }
+    li{ margin-bottom:6px; }
+  </style>
+  <script>
+  const SUPABASE_URL = "https://fjwpfesqfwtozaciphnc.supabase.co";
+  const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZqd3BmZXNxZnd0b3phY2lwaG5jIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTY5Nzg5NDksImV4cCI6MjA3MjU1NDk0OX0.4JaHGc5ISuk7IywOeEbuaHGMBFMLJo3uK2MLFF8S6BE";
+  let extractedText = "";
+  </script>
+</head>
+<body>
+  <header>
+    <h1>Læringsassistent</h1>
+  </header>
+
+  <div class="container">
+    <section class="left">
+      <div class="card">
+        <label for="profile">Vælg praktikprofil</label>
+        <select id="profile"></select>
+        <div style="height:8px;"></div>
+        <button id="actionBtn" class="btn btn-dark">Vælg læreplan (PDF)</button>
+        <input id="pdfInput" type="file" accept="application/pdf" style="display:none">
+        <p id="fileName" class="note">Ingen fil valgt</p>
+      </div>
+
+      <div class="card">
+        <h2>Mine aktiviteter</h2>
+        <div class="card">
+          <h3>Aktivitet 1</h3>
+          <p id="activity1">[Tom]</p>
+          <textarea id="reflection1" placeholder="Skriv din refleksion..."></textarea>
+          <button class="btn btn-danger" onclick="deleteActivity(0)">Slet</button>
+        </div>
+        <div class="card">
+          <h3>Aktivitet 2</h3>
+          <p id="activity2">[Tom]</p>
+          <textarea id="reflection2" placeholder="Skriv din refleksion..."></textarea>
+          <button class="btn btn-danger" onclick="deleteActivity(1)">Slet</button>
+        </div>
+        <div class="card">
+          <h3>Aktivitet 3</h3>
+          <p id="activity3">[Tom]</p>
+          <textarea id="reflection3" placeholder="Skriv din refleksion..."></textarea>
+          <button class="btn btn-danger" onclick="deleteActivity(2)">Slet</button>
+        </div>
+        <button id="printBtn" class="btn btn-dark">Udskriv aktiviteter og refleksioner</button>
+      </div>
+    </section>
+
+    <section class="right">
+      <div class="card suggestion">
+        <h2>Nyt forslag</h2>
+        <div id="suggestion">[Ingen forslag endnu]</div>
+        <button id="saveBtn" class="btn btn-dark" style="margin-top:8px;">Gem aktivitet</button>
+      </div>
+
+      <div class="card competency scroll">
+        <h2>Kompetencemål</h2>
+        <p id="kmText"></p>
+        <h3>Vidensmål</h3><ul id="vidensList"></ul>
+        <h3>Færdighedsmål</h3><ul id="faerdList"></ul>
+      </div>
+
+      <div class="card summary scroll">
+        <h2>Opsummering af læreplan</h2>
+        <div id="summaryBox">[Ingen opsummering endnu]</div>
+      </div>
+    </section>
+  </div>
+
+<script>
+  // --- State ---
+  let kompetencemalData={};
+  let currentSuggestion="";
+  let saved=JSON.parse(localStorage.getItem("savedActivities"))||[null,null,null];
+  let reflections=JSON.parse(localStorage.getItem("reflections"))||["","",""];
+  let hasFile=false; let lastFile=null;
+
+  const profileSelect=document.getElementById('profile');
+  const pdfInput=document.getElementById('pdfInput');
+  const actionBtn=document.getElementById('actionBtn');
+  const fileName=document.getElementById('fileName');
+  const suggestionDiv=document.getElementById('suggestion');
+  const summaryBox=document.getElementById('summaryBox');
+
+  // Load kompetencemål (full dataset)
+  fetch('/kompetencemal.json').then(r=>r.json()).then(data=>{
+    kompetencemalData=data;
+    Object.keys(data).forEach(k=>{ const o=document.createElement('option'); o.value=k; o.textContent=k; profileSelect.appendChild(o); });
+    updateCompetency();
+    profileSelect.onchange=updateCompetency;
+  });
+
+  function updateCompetency(){
+    const d=kompetencemalData[profileSelect.value]; if(!d) return;
+    document.getElementById('kmText').textContent=d['kompetencemål']||'';
+    document.getElementById('vidensList').innerHTML=(d['vidensmål']||[]).map(v=>'<li>'+v+'</li>').join('');
+    document.getElementById('faerdList').innerHTML=(d['færdighedsmål']||[]).map(v=>'<li>'+v+'</li>').join('');
+  }
+
+  // Choose file first, then reuse to generate suggestion
+  actionBtn.onclick=()=>{ if(!hasFile){ pdfInput.click(); } else { generateSuggestion(); } };
+
+  // After picking a file: build summary once
+  pdfInput.onchange=async()=>{
+    if(pdfInput.files[0]){
+      hasFile=true; lastFile=pdfInput.files[0];
+      fileName.textContent=lastFile.name;
+      actionBtn.textContent='Lav forslag til aktivitet';
+
+      summaryBox.textContent='Genererer opsummering...';
+      const fd=new FormData(); fd.append('pdf', lastFile);
+      const res=await fetch(`${SUPABASE_URL}/functions/v1/opsummering`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${SUPABASE_ANON_KEY}`
+        },
+        body: JSON.stringify({ text: extractedText })
+      });
+      const data=await res.json();
+      summaryBox.innerHTML=(data.summary||'').replace(/\n/g,'<br>');
+    } else {
+      hasFile=false; actionBtn.textContent='Vælg læreplan (PDF)'; fileName.textContent='Ingen fil valgt';
+      summaryBox.textContent='[Ingen opsummering endnu]';
+    }
+  };
+
+  async function generateSuggestion(){
+    if(!lastFile) return;
+    suggestionDiv.textContent='Genererer forslag...';
+    const fd=new FormData(); fd.append('pdf', lastFile); fd.append('profile', profileSelect.value);
+    const res=await fetch(`${SUPABASE_URL}/functions/v1/forslag`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${SUPABASE_ANON_KEY}`
+        },
+        body: JSON.stringify({ text: extractedText, profile: profileSelect.value })
+      });
+    const data=await res.json();
+    currentSuggestion=data.suggestion||'';
+    suggestionDiv.textContent=currentSuggestion || '[Intet forslag]';
+  }
+
+  // Save suggestion into first free slot, else prompt to overwrite
+  document.getElementById('saveBtn').onclick=()=>{
+    if(!currentSuggestion) return;
+    for(let i=0;i<3;i++){
+      if(!saved[i]){ saved[i]=currentSuggestion; document.getElementById('activity'+(i+1)).innerText=currentSuggestion; localStorage.setItem('savedActivities', JSON.stringify(saved)); currentSuggestion=''; suggestionDiv.textContent='[Ingen forslag endnu]'; return; }
+    }
+    const c=prompt('Alle bokse er fyldte. Indtast 1,2,3 for at overskrive:');
+    if(['1','2','3'].includes(c)){ const i=parseInt(c)-1; saved[i]=currentSuggestion; document.getElementById('activity'+(i+1)).innerText=currentSuggestion; localStorage.setItem('savedActivities', JSON.stringify(saved)); currentSuggestion=''; suggestionDiv.textContent='[Ingen forslag endnu]'; }
+  };
+
+  // Reflections + restore
+  for(let i=0;i<3;i++){
+    const rEl=document.getElementById('reflection'+(i+1));
+    rEl.addEventListener('input', e=>{ reflections[i]=e.target.value; localStorage.setItem('reflections', JSON.stringify(reflections)); });
+    if(reflections[i]) rEl.value=reflections[i];
+    if(saved[i]) document.getElementById('activity'+(i+1)).innerText=saved[i];
+  }
+  function deleteActivity(i){
+    saved[i]=null; reflections[i]='';
+    document.getElementById('activity'+(i+1)).innerText='[Tom]';
+    document.getElementById('reflection'+(i+1)).value='';
+    localStorage.setItem('savedActivities', JSON.stringify(saved));
+    localStorage.setItem('reflections', JSON.stringify(reflections));
+  }
+  window.deleteActivity=deleteActivity;
+
+  // ----- PDF EXPORT (Apple polish + robust wrapping) -----
+  document.getElementById('printBtn').onclick=()=>{
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF();
+    const pageH = doc.internal.pageSize.height;
+    const pageW = doc.internal.pageSize.width;
+    const margin = 20;
+    let y = 20;
+    let page = 1;
+
+    const today = new Date().toLocaleDateString('da-DK');
+    const profile = profileSelect.value || '[Ingen valgt]';
+
+    function footer(){
+      doc.setFont('helvetica','normal'); doc.setFontSize(10); doc.setTextColor(150,150,150);
+      doc.text('Side '+page, pageW/2, pageH-10, {align:'center'});
+    }
+    function addWrappedText(text, x, y, maxWidth, lineHeight){
+      const lines = doc.splitTextToSize(text||'', maxWidth);
+      for(let i=0;i<lines.length;i++){
+        if(y > pageH - 20){ footer(); doc.addPage(); page++; y = 20; }
+        doc.text(lines[i], x, y);
+        y += lineHeight;
+      }
+      return y;
+    }
+
+    // Header
+    doc.setFont('helvetica','bold'); doc.setFontSize(18); doc.setTextColor(20,20,20);
+    doc.text('Mine aktiviteter og refleksioner', pageW/2, y, {align:'center'}); y+=8;
+    doc.setFont('helvetica','normal'); doc.setFontSize(12); doc.setTextColor(100,100,100);
+    doc.text('Dato: '+today, pageW/2, y, {align:'center'}); y+=7;
+    doc.text('Uddannelsesprofil: '+profile, pageW/2, y, {align:'center'}); y+=8;
+    doc.setDrawColor(208,215,226); doc.setLineWidth(.5); doc.line(margin, y, pageW-margin, y); y+=13;
+
+    for(let i=0;i<3;i++){
+      if(y > pageH-30){ footer(); doc.addPage(); page++; y=20; }
+      doc.setFont('helvetica','bold'); doc.setFontSize(13); doc.setTextColor(26,86,219);
+      doc.text('Aktivitet '+(i+1)+':', margin, y); y+=7;
+
+      doc.setFont('helvetica','normal'); doc.setFontSize(12); doc.setTextColor(0,0,0);
+      y = addWrappedText(saved[i]||'[Tom]', margin, y, pageW-2*margin, 7); y += 2;
+
+      doc.setFont('helvetica','bold'); doc.setFontSize(12); doc.setTextColor(15,81,50);
+      doc.text('Refleksion:', margin, y); y+=6;
+
+      doc.setFont('helvetica','normal'); doc.setFontSize(12); doc.setTextColor(0,0,0);
+      y = addWrappedText(reflections[i]||'', margin, y, pageW-2*margin, 7); y += 6;
+
+      doc.setDrawColor(220,220,220); doc.setLineWidth(.3);
+      doc.line(margin, y, pageW-margin, y); y += 10;
+    }
+    footer();
+    doc.save('aktiviteter.pdf');
+  };
+</script>
+</body>
+</html>
