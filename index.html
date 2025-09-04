@@ -8,25 +8,35 @@
   <style>
     :root { --bg:#f5f5f7; --card:#fff; --ink:#111; --muted:#666; --blue:#1a56db; --green:#0f5132; --line:#d0d7e2; }
     *{ box-sizing: border-box; }
-    body { font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; margin:24px; background:var(--bg); color:var(--ink); }
+    body { font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; margin:24px; background:var(--bg); color:var(--ink); line-height:1.5; }
     header{ display:flex; align-items:center; justify-content:space-between; margin-bottom:16px; }
-    h1{ margin:0; font-size:1.8rem; }
+    h1{ margin:0; font-size:1.8rem; font-weight:700; }
+    h2{ margin:0 0 12px 0; font-size:1.3rem; font-weight:600; }
+    h3{ margin:12px 0 8px 0; font-size:1.1rem; font-weight:600; color:var(--blue); }
     .container{ display:flex; flex-wrap:wrap; gap:24px; align-items:flex-start; }
     .left,.right{ flex:1; min-width:340px; }
-    .card{ background:var(--card); border-radius:16px; padding:16px; box-shadow:0 4px 12px rgba(0,0,0,.06); margin-bottom:16px; }
+    .card{ background:var(--card); border-radius:16px; padding:20px; box-shadow:0 4px 12px rgba(0,0,0,.06); margin-bottom:16px; }
     .btn{ padding:12px 16px; border:none; border-radius:12px; font-weight:600; cursor:pointer; }
     .btn-dark{ background:var(--ink); color:#fff; }
     .btn-danger{ background:#d33; color:#fff; }
     .suggestion{ background:#e8f7ee; }
     .competency{ background:#e6f0ff; }
     .summary{ background:#fffbe6; }
-    label{ font-weight:600; display:block; margin-bottom:6px; }
-    select{ padding:10px 12px; border-radius:10px; border:1px solid #ddd; }
-    textarea{ width:100%; min-height:80px; border:1px solid #ddd; border-radius:10px; padding:8px; }
-    .note{ color:var(--muted); font-size:.9rem; }
-    .scroll{ max-height:350px; overflow:auto; }
-    ul{ margin:0 0 12px 20px; }
-    li{ margin-bottom:6px; }
+    label{ font-weight:600; display:block; margin-bottom:8px; font-size:1rem; }
+    select{ padding:12px 14px; border-radius:10px; border:1px solid #ddd; font-size:1rem; width:100%; }
+    textarea{ width:100%; min-height:100px; border:1px solid #ddd; border-radius:10px; padding:12px; font-size:1rem; resize:vertical; }
+    .note{ color:var(--muted); font-size:.95rem; margin-top:8px; }
+    .scroll{ max-height:400px; overflow:auto; padding-right:8px; }
+    .scroll::-webkit-scrollbar{ width:6px; }
+    .scroll::-webkit-scrollbar-track{ background:#f1f1f1; border-radius:3px; }
+    .scroll::-webkit-scrollbar-thumb{ background:#ccc; border-radius:3px; }
+    .scroll::-webkit-scrollbar-thumb:hover{ background:#999; }
+    ul{ margin:0 0 16px 0; padding-left:20px; }
+    li{ margin-bottom:8px; line-height:1.4; }
+    #kmText{ font-size:1rem; line-height:1.5; margin-bottom:16px; padding:12px; background:#f8f9ff; border-radius:8px; border-left:4px solid var(--blue); }
+    #summaryBox{ font-size:1rem; line-height:1.5; }
+    .activity-card{ border-left:4px solid var(--green); }
+    .activity-title{ color:var(--green); font-weight:600; margin-bottom:8px; }
   </style>
   <script>
   const SUPABASE_URL = "https://fjwpfesqfwtozaciphnc.supabase.co";
@@ -52,20 +62,20 @@
 
       <div class="card">
         <h2>Mine aktiviteter</h2>
-        <div class="card">
-          <h3>Aktivitet 1</h3>
+        <div class="card activity-card">
+          <div class="activity-title">Aktivitet 1</div>
           <p id="activity1">[Tom]</p>
           <textarea id="reflection1" placeholder="Skriv din refleksion..."></textarea>
           <button class="btn btn-danger" onclick="deleteActivity(0)">Slet</button>
         </div>
-        <div class="card">
-          <h3>Aktivitet 2</h3>
+        <div class="card activity-card">
+          <div class="activity-title">Aktivitet 2</div>
           <p id="activity2">[Tom]</p>
           <textarea id="reflection2" placeholder="Skriv din refleksion..."></textarea>
           <button class="btn btn-danger" onclick="deleteActivity(1)">Slet</button>
         </div>
-        <div class="card">
-          <h3>Aktivitet 3</h3>
+        <div class="card activity-card">
+          <div class="activity-title">Aktivitet 3</div>
           <p id="activity3">[Tom]</p>
           <textarea id="reflection3" placeholder="Skriv din refleksion..."></textarea>
           <button class="btn btn-danger" onclick="deleteActivity(2)">Slet</button>
@@ -84,8 +94,10 @@
       <div class="card competency scroll">
         <h2>Kompetencemål</h2>
         <p id="kmText"></p>
-        <h3>Vidensmål</h3><ul id="vidensList"></ul>
-        <h3>Færdighedsmål</h3><ul id="faerdList"></ul>
+        <h3>📚 Vidensmål</h3>
+        <ul id="vidensList"></ul>
+        <h3>🎯 Færdighedsmål</h3>
+        <ul id="faerdList"></ul>
       </div>
 
       <div class="card summary scroll">
